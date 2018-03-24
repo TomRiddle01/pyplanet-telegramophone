@@ -69,7 +69,6 @@ class TelegramophoneApp(AppConfig):
         self.active = False
         key = await self.setting_bot_key.get_value(refresh=True) or None
         self.chat_id = await self.setting_target_chat.get_value(refresh=True) or None
-        print(key)
         if key and self.chat_id:
             self.bot = telegram.Bot(key)
             self.active = True
