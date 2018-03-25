@@ -62,7 +62,7 @@ class TelegramophoneApp(AppConfig):
     async def get_current_player_list(self):
         message = "Currently online:\n"
         for player in self.instance.player_manager.online:
-            message = f"{self.remove_format(player.nickname)}\n"
+            message += f"{self.remove_format(player.nickname)}\n"
         return message
 
     async def reload_settings(self, *args, **kwargs):
@@ -100,6 +100,12 @@ class TelegramophoneApp(AppConfig):
         text = source["text"]
         cmd = source["cmd"]
         message = f"{self.remove_format(text)}"
+        ignore = ["joined the server!", "left the server!"]
+
+        for s in ignore:
+            if s in message:
+                return
+
         self.bot.send_message(self.chat_id, message, disable_web_page_preview=True, disable_notification=True)
 
     async def on_map_start(self, map, **kwargs):
