@@ -78,20 +78,21 @@ class TelegramophoneApp(AppConfig):
             return
         message = f"[{self.get_player_name(player)}] joined the server.\n"
         message += await self.get_current_player_list()
-        self.bot.send_message(self.chat_id, message, disable_web_page_preview=True)
+        await self.send_message(message)
+
 
     async def on_disconnect(self, player, **kwargs):
         if not self.active:
             return
         message = f"[{self.get_player_name(player)}] left the server.\n"
         message += await self.get_current_player_list()
-        self.bot.send_message(self.chat_id, message, disable_web_page_preview=True, disable_notification=True)
+        await self.send_message(message)
 
     async def on_chat(self, player, text, cmd, **kwargs):
         if not self.active:
             return
         message = f"[{self.get_player_name(player)}]\n{text}"
-        self.bot.send_message(self.chat_id, message, disable_web_page_preview=True)
+        await self.send_message(message)
 
 
     async def on_server_chat(self, source, signal):
@@ -106,7 +107,7 @@ class TelegramophoneApp(AppConfig):
             if s in message:
                 return
 
-        self.bot.send_message(self.chat_id, message, disable_web_page_preview=True, disable_notification=True)
+        await self.send_message(message)
 
     async def on_map_start(self, map, **kwargs):
         if not self.active:
@@ -115,7 +116,7 @@ class TelegramophoneApp(AppConfig):
         author_login = self.remove_format(map.author_login) if map.author_login is not None else ""
         author_nick = self.remove_format(map.author_nickname) if map.author_nickname is not None else ""
         message = f"New Map: {map_name} by {author_nick} {author_login}"
-        self.bot.send_message(self.chat_id, message, disable_web_page_preview=True, disable_notification=True)
+        await self.send_message(message)
 
 
     def get_player_name(self, player):
@@ -129,3 +130,9 @@ class TelegramophoneApp(AppConfig):
         text = re.sub(r'\$l\[.*?((\$l)|(\]))', "", text)
         text = re.sub(r'\$.', "", text)
         return text
+
+    async def send_message(self, message):
+        try:
+            self.bot.send_message(self.chat_id, message, disable_web_page_preview=True)
+        except Exception as e:
+            pass
