@@ -60,6 +60,9 @@ class TelegramophoneApp(AppConfig):
         await self.reload_settings(None)
 
     async def get_current_player_list(self):
+        if len(self.instance.player_manager.online)==0:
+            return "No players online"
+
         message = "Currently online:\n"
         for player in self.instance.player_manager.online:
             message += f"{self.remove_format(player.nickname)}\n"
@@ -76,22 +79,24 @@ class TelegramophoneApp(AppConfig):
     async def on_connect(self, player, **kwargs):
         if not self.active:
             return
-        message = f"[{self.get_player_name(player)}] joined the server.\n"
-        message += await self.get_current_player_list()
+        message = f"[{self.get_player_name(player)}] joined the server."
+        await self.send_message(message)
+        message = await self.get_current_player_list()
         await self.send_message(message)
 
 
     async def on_disconnect(self, player, **kwargs):
         if not self.active:
             return
-        message = f"[{self.get_player_name(player)}] left the server.\n"
-        message += await self.get_current_player_list()
+        message = f"[{self.get_player_name(player)}] left the server."
+        await self.send_message(message)
+        message = await self.get_current_player_list()
         await self.send_message(message)
 
     async def on_chat(self, player, text, cmd, **kwargs):
         if not self.active:
             return
-        message = f"[{self.get_player_name(player)}]\n{text}"
+        message = f"[{self.get_player_name(player)}] {text}"
         await self.send_message(message)
 
 
