@@ -23,6 +23,7 @@ class TelegramophoneApp(AppConfig):
     active = False
 
     chat_queue = Queue()
+    supported_commands = ["//skip", "//mute", "//unmute", "//kick", "//ban", "//unban", "//mx", "reboot", "//setpassword", "//setspecpassword", "chat", "writemaplist", "//restart", "//mxpack", "/version"]
 
 
     def __init__(self, *args, **kwargs):
@@ -43,6 +44,12 @@ class TelegramophoneApp(AppConfig):
             default=None, change_target=self.reload_settings
         )
 
+        self.setting_admins = Setting(
+            'admins', 'Telegram Admin Usernames', Setting.CAT_KEYS, type=str,
+            description='Comma-separated list of admins (telegram usernames). Adding =playerlogin associates the user to an ingame user and enables admin commands.',
+            default=None, change_target=self.reload_settings
+        )
+
     async def on_init(self):
         await super().on_init()
 
@@ -55,7 +62,7 @@ class TelegramophoneApp(AppConfig):
     async def on_start(self):
         await super().on_start()
 
-        await self.context.setting.register(self.setting_bot_key, self.setting_target_chat)
+        await self.context.setting.register(self.setting_bot_key, self.setting_target_chat, self.setting_admins)
 
         mp_signals.player.server_chat.register(self.on_server_chat)
         mp_signals.player.player_chat.register(self.on_chat)
@@ -87,6 +94,14 @@ class TelegramophoneApp(AppConfig):
             self.updater = Updater(key, use_context=True)
             self.active = True
 
+        setting_admins = await self.setting_admins.get_value(refresh=True) or ""
+        admin_tuples = [u.strip().split("=") for u in setting_admins.split(",")]
+        self.admins = list()
+        for t in admin_tuples:
+            if len(t) == 2:
+                self.admins.append({"telegram_user": t[0].strip(" "), "playerlogin": t[1].strip(" ")})
+            elif len(t) == 1:
+                self.admins.append({"telegram_user": t[0].strip(" "), "playerlogin": ""})
 
 
     async def send_event_msg(self, event):
@@ -163,10 +178,31 @@ class TelegramophoneApp(AppConfig):
     async def chat_queue_loop(self):
         while True:
             i = 0
-            while not self.chat_queue.empty() and i < 20:
-                i+=1
-                msg = self.chat_queue.get()
-                await self.instance.chat(msg)
+            try:
+                while not self.chat_queue.empty() and i < 20:
+                    i+=1
+                    telegram_user, msg = self.chat_queue.get()
+
+                    if msg.startswith("/"):
+                        base_command =  msg.split(" ")[0]
+                        if base_command in self.supported_commands:
+                            playerlogin = await self.telegram_user_to_playerlogin(telegram_user)
+                            if playerlogin:
+                                player = await self.instance.player_manager.get_player(playerlogin)
+                                await self.instance.command_manager._on_chat(player, msg, True)
+                        else:
+                            self.bot.send_message(self.chat_id, "Command not supported")
+                    else:
+                        playerlogin = await self.telegram_user_to_playerlogin(telegram_user)
+                        if playerlogin:
+                            player = await self.instance.player_manager.get_player(playerlogin)
+                            await self.instance.chat(f"[{player.nickname}] {msg}")
+                        else:
+                            await self.instance.chat(f"[Admin] {msg}")
+            except Exception as e:
+                # for player not found.
+                print(e)
+                pass
 
             await asyncio.sleep(1)
 
@@ -186,13 +222,28 @@ class TelegramophoneApp(AppConfig):
         # update.message.chat.send_message(update.message.text)
 
         if str(update.message.chat_id) == self.chat_id:
-            print("equal")
             if not update.message.from_user.is_bot:
-                self.chat_queue.put(f"[Admin] {update.message.text}")
-                update.message.delete()
+                username = update.message.from_user.username
+                is_admin = self.is_admin(username)
+                if is_admin:
+                    self.chat_queue.put((username, update.message.text))
+                    if not update.message.text.startswith("/"):
+                        update.message.delete()
+                
         else:
-            print("not equal")
+            print(f"Ignoring Message from Chat {update.message.chat_id}")
 
+    def is_admin(self, telegram_user):
+        for admin in self.admins:
+            if admin["telegram_user"] == telegram_user:
+                return True
+        return False
+
+    async def telegram_user_to_playerlogin(self, telegram_user):
+        for admin in self.admins:
+            if admin["telegram_user"] == telegram_user:
+                return admin["playerlogin"]
+        return None
 
 
     def error(self, update, context):
