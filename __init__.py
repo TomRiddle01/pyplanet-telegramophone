@@ -184,10 +184,15 @@ class TelegramophoneApp(AppConfig):
 
         # test loopback
         # update.message.chat.send_message(update.message.text)
-        if not update.message.from_user.is_bot:
-            self.chat_queue.put(f"[Admin] {update.message.text}")
 
-        update.message.delete()
+        if str(update.message.chat_id) == self.chat_id:
+            print("equal")
+            if not update.message.from_user.is_bot:
+                self.chat_queue.put(f"[Admin] {update.message.text}")
+                update.message.delete()
+        else:
+            print("not equal")
+
 
 
     def error(self, update, context):
