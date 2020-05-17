@@ -196,9 +196,9 @@ class TelegramophoneApp(AppConfig):
                         playerlogin = await self.telegram_user_to_playerlogin(telegram_user)
                         if playerlogin:
                             player = await self.instance.player_manager.get_player(playerlogin)
-                            await self.instance.chat(f"[{player.nickname}] {msg}")
+                            await self.instance.chat(f"[Remote - {player.nickname}$z$s$fff] {msg}")
                         else:
-                            await self.instance.chat(f"[Admin] {msg}")
+                            await self.instance.chat(f"[Remote - Admin] {msg}")
             except Exception as e:
                 # for player not found.
                 print(e)
