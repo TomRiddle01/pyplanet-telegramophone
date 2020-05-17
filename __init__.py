@@ -7,6 +7,8 @@ from pyplanet.contrib.setting import Setting
 import asyncio
 
 import telegram
+from queue import Queue
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 import re
 
 
@@ -14,10 +16,14 @@ class TelegramophoneApp(AppConfig):
     game_dependencies = []
     mode_dependencies = []
     app_dependencies = ['core.maniaplanet']
-    
+
     bot = None
+    updater = None
     chat_id = None
     active = False
+
+    chat_queue = Queue()
+
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -59,6 +65,10 @@ class TelegramophoneApp(AppConfig):
 
         await self.reload_settings(None)
 
+        asyncio.ensure_future(self.telegram_receive_loop())
+        asyncio.ensure_future(self.chat_queue_loop())
+        print("running on")
+
     async def get_current_player_list(self):
         if len(self.instance.player_manager.online)==0:
             return "No players online"
@@ -74,7 +84,15 @@ class TelegramophoneApp(AppConfig):
         self.chat_id = await self.setting_target_chat.get_value(refresh=True) or None
         if key and self.chat_id:
             self.bot = telegram.Bot(key)
+            self.updater = Updater(key, use_context=True)
             self.active = True
+
+
+
+    async def send_event_msg(self, event):
+        message = f"[Event] {event}"
+        await self.send_message(message)
+
 
     async def on_connect(self, player, **kwargs):
         if not self.active:
@@ -141,3 +159,36 @@ class TelegramophoneApp(AppConfig):
             self.bot.send_message(self.chat_id, message, disable_web_page_preview=True)
         except Exception as e:
             pass
+
+    async def chat_queue_loop(self):
+        while True:
+            i = 0
+            while not self.chat_queue.empty() and i < 20:
+                i+=1
+                msg = self.chat_queue.get()
+                await self.instance.chat(msg)
+
+            await asyncio.sleep(1)
+
+
+    async def telegram_receive_loop(self):
+        dp = self.updater.dispatcher
+
+        dp.add_handler(MessageHandler(Filters.text, self.receive_message))
+        dp.add_error_handler(self.error)
+
+        print("initialized telegram listener")
+        self.updater.start_polling()
+
+    def receive_message(self, update, context):
+
+        # test loopback
+        # update.message.chat.send_message(update.message.text)
+        if not update.message.from_user.is_bot:
+            self.chat_queue.put(f"[Admin] {update.message.text}")
+
+        update.message.delete()
+
+
+    def error(self, update, context):
+        print('Update "%s" caused error "%s"', update, context.error)
